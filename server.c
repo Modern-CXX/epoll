@@ -1,4 +1,4 @@
-//server.cpp
+//server.c
 
 #include <sys/epoll.h>
 #include <stdio.h>
