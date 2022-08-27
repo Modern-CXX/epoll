@@ -1,94 +1,99 @@
 //client.c
 
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <netdb.h>
-#include <string.h>
-#include <errno.h>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <thread>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+
+#define PRINT_LOG(fmt, ...) do \
+{ \
+    printf("%s:%d:%s: " fmt "\n", \
+        __FILE__, __LINE__, __func__, ##__VA_ARGS__); \
+} while (0) /* ; no trailing semicolon here */
+
+#define PERROR(fmt, ...) do \
+{ \
+    printf("%s:%d:%s: %s. " fmt "\n", \
+        __FILE__, __LINE__, __func__, strerror(errno), ##__VA_ARGS__); \
+} while (0) /* ; no trailing semicolon here */
+
+void set_nonblock(int fd)
+{
+    int flags = fcntl(fd, F_GETFL);
+    if (flags == -1) {
+        PERROR("fcntl");
+        exit(EXIT_FAILURE);
+    }
+
+    flags |= O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, flags) == -1) {
+        PERROR("fcntl");
+        exit(EXIT_FAILURE);
+    }
+}
 
 int main(int argc, char *argv[])
 {
-    struct addrinfo hints, *result;
-    const char *host = argv[1];
-    const char *port = argv[2];
-    int sfd;
-    int sockopt = 1;
+    int fd;
     int ret;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_UNSPEC;
+    struct sockaddr_in addr;
+    const char *host;
+    int port;
+    const char *msg;
 
-    if (argc != 4)
-    {
-        printf("Usage: %s <host> <port> <msg>\n", argv[0]);
+    if (argc != 4) {
+        PRINT_LOG("Usage: %s <host> <port> <msg>\n", argv[0]);
         return 1;
     }
 
-    ret = getaddrinfo(host, port, &hints, &result);
-    if (ret != 0)
-    {
-        printf("getaddrinfo: %s\n", gai_strerror(ret));
-        return 1;
+    host = argv[1];
+    port = atoi(argv[2]);
+    msg = argv[3];
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1){
+        PERROR("socket");
+        exit(EXIT_FAILURE);
     }
 
-    sfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    if (sfd == -1)
-    {
-        printf("socket: %s\n", strerror(errno));
-        return 1;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_port = htons(port);
+    addr.sin_family = AF_INET;
+
+    ret = inet_aton(host, (struct in_addr*)&addr.sin_addr.s_addr);
+    if (ret == 0){
+        PRINT_LOG("inet_aton failed");
+        exit(EXIT_FAILURE);
     }
 
-    ret = connect(sfd, result->ai_addr, result->ai_addrlen);
-    if (ret == -1)
-    {
-        printf("connect: %s\n", strerror(errno));
-        return 1;
+    ret = connect(fd, (struct sockaddr*)&addr, sizeof(addr));
+    if (ret == -1){
+        PERROR("connect");
+        close(fd);
     }
 
-    freeaddrinfo(result);
+    PRINT_LOG("connecting to %s:%d", host, port);
 
-    //set socket non-block
-    int flag = fcntl(sfd, F_GETFL);
-    if (sfd == -1)
-    {
-        printf("fcntl: %s\n", strerror(errno));
-        return 1;
-    }
-    flag |= O_NONBLOCK;
-    flag = fcntl(sfd, F_SETFL, flag);
-    if (sfd == -1)
-    {
-        printf("fcntl: %s\n", strerror(errno));
-        return 1;
-    }
+    set_nonblock(fd);
 
-
-    //send / recv
-
-    while (1)
-    {
+    for(;;){
         sleep(1); //test
-        const char *msg = argv[3];
-        ret = write(sfd, msg, strlen(msg));
+        ret = write(fd, msg, strlen(msg));
 
         char buf[1024] = {'\0'};
-        ret = read(sfd, buf, sizeof(buf) - 1);
-        if (strlen(buf) > 0)
-            printf("%s\n", buf);
+        ret = read(fd, buf, sizeof(buf) - 1);
+        if (ret > 0){
+            PRINT_LOG("%s", buf);
+        }
     }
 
-    //send / recv
-
-
-    ret = close(sfd);
-    if (ret == -1)
-    {
-        printf("close: %s\n", strerror(errno));
+    ret = close(fd);
+    if (ret == -1) {
+        PRINT_LOG("close: %s\n", strerror(errno));
         return 1;
     }
 
