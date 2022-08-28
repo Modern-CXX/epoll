@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
                 }
                 set_nonblock(connfd);
 
-                conn_count++; //
+                conn_count++;
                 PRINT_LOG("accept connection from client %s:%u, conn_count: %d",
                     inet_ntoa(peer_addr.sin_addr), peer_addr.sin_port,
                     conn_count);
@@ -130,12 +130,13 @@ int main(int argc, char *argv[])
             } else if (events[i].events & EPOLLIN) {
                 int fd = events[i].data.fd;
                 int done = 0;
+
                 for (;;){
                     char buf[1024] = {0};
                     ret = read(fd, buf, sizeof(buf) - 1);
-                    int err = errno;
 
                     if (ret == -1) {
+                        // PERROR("read");
                         break;
                     }
                     if (ret == 0){
@@ -159,11 +160,14 @@ int main(int argc, char *argv[])
             } else if (events[i].events & EPOLLOUT){
                 int fd = events[i].data.fd;
                 int done = 0;
+
                 for (;;){
                     const char *msg = "hello client ";
                     sleep(1); //test
+
                     ret = write(fd, msg, strlen(msg));
                     if (ret == -1 || errno == EAGAIN || errno == EPIPE) {
+                        // PERROR("write");
                         break;
                     }
                     if (ret == 0) {
