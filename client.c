@@ -90,12 +90,7 @@ int main(int argc, char *argv[])
             PRINT_LOG("%s", buf);
         }
     }
-
     ret = close(fd);
-    if (ret == -1) {
-        PRINT_LOG("close: %s\n", strerror(errno));
-        return 1;
-    }
 
     return 0;
 }
