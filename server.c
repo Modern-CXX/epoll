@@ -130,13 +130,21 @@ int main(int argc, char *argv[])
             } else if (events[i].events & EPOLLIN) {
                 int fd = events[i].data.fd;
                 int done = 0;
+                int err = 0;
 
                 for (;;){
                     char buf[1024] = {0};
                     ret = read(fd, buf, sizeof(buf) - 1);
-
+                    err = errno;
+                    if (ret > 0){
+                        PRINT_LOG("%s", buf);
+                    }
+                    if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
+                                            err == ECONNRESET || err == EINTR){
+                        break;
+                    }
+                    PERROR("read, ret: %d, err: %d", ret, err);
                     if (ret == -1) {
-                        // PERROR("read");
                         break;
                     }
                     if (ret == 0){
@@ -144,7 +152,6 @@ int main(int argc, char *argv[])
                         done = 1;
                         break;
                     }
-                    PRINT_LOG("%s", buf);
                 }
                 if (done){
                     break;
@@ -160,14 +167,19 @@ int main(int argc, char *argv[])
             } else if (events[i].events & EPOLLOUT){
                 int fd = events[i].data.fd;
                 int done = 0;
+                int err = 0;
 
                 for (;;){
-                    const char *msg = "hello client ";
                     sleep(1); //test
-
+                    const char *msg = "hello client ";
                     ret = write(fd, msg, strlen(msg));
-                    if (ret == -1 || errno == EAGAIN || errno == EPIPE) {
-                        // PERROR("write");
+                    err = errno;
+                    if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
+                                            err == ECONNRESET || err == EINTR){
+                        break;
+                    }
+                    PERROR("write, ret: %d, err: %d", ret, err);
+                    if (ret == -1) {
                         break;
                     }
                     if (ret == 0) {
