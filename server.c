@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
                     }
                 }
                 if (done){
-                    break;
+                    continue;
                 }
 
                 ev.events = EPOLLOUT | EPOLLET;
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
                     }
                 }
                 if (done){
-                    break;
+                    continue;
                 }
 
                 ev.events = EPOLLIN | EPOLLET;
