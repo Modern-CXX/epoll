@@ -28,18 +28,19 @@ int set_nonblock(int fd)
         PERROR("fcntl");
         return -1;
     }
-
     flags |= O_NONBLOCK;
     if (fcntl(fd, F_SETFL, flags) == -1) {
         PERROR("fcntl");
         return -1;
     }
+    return 0;
 }
 
 int main(int argc, char *argv[])
 {
     int fd;
     int ret;
+    int err = 0;
     struct sockaddr_in addr;
     const char *host;
     int port;
@@ -77,27 +78,74 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    PRINT_LOG("connect to %s:%d", host, port);
+    PRINT_LOG("connect to server %s:%d", host, port);
 
     set_nonblock(fd);
 
     for(;;){
-        sleep(1); //test
-        ret = write(fd, msg, strlen(msg));
-        if (errno != 0){
-            PERROR("write, ret: %d, errno: %d", ret, errno);
+        //write
+        enum {count = 1024};
+        char buf[count + 1] = {'\0'}, *p = buf;
+        int len = 0;
+
+        while (len < count) {
+            sleep(1); //test
+            memcpy(buf, msg, count);
+            ret = write(fd, p, count - len);
+            err = errno;
+
+            if (ret > 0){
+                len += ret;
+                p += ret;
+            }
+
+            if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
+                                                            err == ECONNRESET){
+                break;
+            }
+            if (err == EINTR){
+                continue;
+            }
+            if (err != 0){
+                PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
+            }
         }
 
-        char buf[1024] = {'\0'};
-        ret = read(fd, buf, sizeof(buf) - 1);
-        if (errno != 0){
-            PERROR("read, ret: %d, errno: %d", ret, errno);
+        // read
+        p = buf;
+        len = 0;
+        memset(buf, 0, sizeof(buf));
+
+        while (len < count){
+            ret = read(fd, p, count - len);
+            err = errno;
+
+            if (ret > 0){
+                len += ret;
+                p += ret;
+            }
+
+            if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
+                                                            err == ECONNRESET){
+                break;
+            }
+            if (err == EINTR){
+                continue;
+            }
+            if (err != 0){
+                PERROR("read, ret: %d, errno: %d", ret, errno);
+            }
+            if (err != 0){
+                PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
+            }
         }
 
-        if (ret > 0){
-            PRINT_LOG("%s", buf);
+        if (len > 0){
+            PRINT_LOG("ret:%d, err:%d, len:%d, %s", ret, err, len, buf);
         }
+
     }
+    
     ret = close(fd);
 
     return 0;
