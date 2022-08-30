@@ -24,18 +24,18 @@
         __FILE__, __LINE__, __func__, strerror(errno), ##__VA_ARGS__); \
 } while (0) /* ; no trailing semicolon here */
 
-void set_nonblock(int fd)
+int set_nonblock(int fd)
 {
     int flags = fcntl(fd, F_GETFL);
     if (flags == -1) {
         PERROR("fcntl");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     flags |= O_NONBLOCK;
     if (fcntl(fd, F_SETFL, flags) == -1) {
         PERROR("fcntl");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 }
 
@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
     int ret = 0, conn_count = 0;
     struct sockaddr_in my_addr, peer_addr;
     socklen_t addrlen = sizeof(peer_addr);
+    int sockopt = 1;
 
     if (argc == 2){
         int n = atoi(argv[1]);
@@ -65,44 +66,50 @@ int main(int argc, char *argv[])
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd == -1) {
         PERROR("socket");
-        exit(EXIT_FAILURE);
+        return -1;
+    }
+
+    ret = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &sockopt, sizeof(sockopt));
+    if (ret == -1){
+        PERROR("setsockopt");
+        return -1;
     }
 
     ret = bind(listenfd, (struct sockaddr*)&my_addr, sizeof(my_addr));
     if (ret == -1) {
         PERROR("bind");
         close(listenfd);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     ret = listen(listenfd, SOMAXCONN);
     if (ret == -1) {
         PERROR("listen");
         close(listenfd);
-        exit(EXIT_FAILURE);
+        return -1;
     }
-
+    PRINT_LOG("listen on port: %d", port);
     signal(SIGPIPE, SIG_IGN);
 
     /* set up epoll */
     efd = epoll_create1(0);
     if (efd == -1) {
         PERROR("epoll_create1");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     ev.events = EPOLLIN;
     ev.data.fd = listenfd;
     if (epoll_ctl(efd, EPOLL_CTL_ADD, listenfd, &ev) == -1) {
         PERROR("epoll_ctl");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     for (;;) {
-        nfds = epoll_wait(efd, events, sizeof(events) / sizeof(events[0]), 1);
+        nfds = epoll_wait(efd, events, sizeof(events) / sizeof(events[0]),
+                                                                1000); //1 sec
         if (nfds == -1) {
             PERROR("epoll_wait");
-            exit(EXIT_FAILURE);
         }
 
         for (int i = 0; i < nfds; i++) {
@@ -111,9 +118,10 @@ int main(int argc, char *argv[])
                                 (struct sockaddr *) &peer_addr, &addrlen);
                 if (connfd == -1) {
                     PERROR("accept");
-                    exit(EXIT_FAILURE);
                 }
-                set_nonblock(connfd);
+                if (set_nonblock(connfd)){
+                    return -1;
+                }
 
                 conn_count++;
                 PRINT_LOG("accept connection from client %s:%u, conn_count: %d",
@@ -124,26 +132,31 @@ int main(int argc, char *argv[])
                 ev.data.fd = connfd;
                 if (epoll_ctl(efd, EPOLL_CTL_ADD, connfd, &ev) == -1) {
                     PERROR("epoll_ctl");
-                    exit(EXIT_FAILURE);
                 }
+
+            } else if (events[i].events & (EPOLLHUP | EPOLLERR)) {
+                int fd = events[i].data.fd;
+                close(fd);
+                PRINT_LOG("EPOLLHUP | EPOLLERR");
 
             } else if (events[i].events & EPOLLIN) {
                 int fd = events[i].data.fd;
                 int done = 0;
-                int err = 0;
 
                 for (;;){
                     char buf[1024] = {0};
                     ret = read(fd, buf, sizeof(buf) - 1);
-                    err = errno;
                     if (ret > 0){
                         PRINT_LOG("%s", buf);
                     }
-                    if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
-                                            err == ECONNRESET || err == EINTR){
+                    if (errno == EAGAIN || errno == EWOULDBLOCK ||
+                                        errno == EPIPE || errno == ECONNRESET ||
+                                        errno == EINTR){
                         break;
                     }
-                    PERROR("read, ret: %d, err: %d", ret, err);
+                    if (errno != 0){
+                        PERROR("read, ret: %d, errno: %d", ret, errno);
+                    }
                     if (ret == -1) {
                         break;
                     }
@@ -161,24 +174,22 @@ int main(int argc, char *argv[])
                 ev.data.fd = fd;
                 if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
                     PERROR("epoll_ctl");
-                    exit(EXIT_FAILURE);
                 }
 
             } else if (events[i].events & EPOLLOUT){
                 int fd = events[i].data.fd;
                 int done = 0;
-                int err = 0;
 
                 for (;;){
                     sleep(1); //test
                     const char *msg = "hello client ";
                     ret = write(fd, msg, strlen(msg));
-                    err = errno;
-                    if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
-                                            err == ECONNRESET || err == EINTR){
+                    if (errno == EAGAIN || errno == EWOULDBLOCK ||
+                                        errno == EPIPE || errno == ECONNRESET ||
+                                        errno == EINTR){
                         break;
                     }
-                    PERROR("write, ret: %d, err: %d", ret, err);
+                    PERROR("write, ret: %d, errno: %d", ret, errno);
                     if (ret == -1) {
                         break;
                     }
@@ -196,16 +207,16 @@ int main(int argc, char *argv[])
                 ev.data.fd = fd;
                 if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
                     PERROR("epoll_ctl");
-                    exit(EXIT_FAILURE);
                 }
 
             } else {
                 PRINT_LOG("unknown event");
                 int fd = events[i].data.fd;
                 close(fd);
-                exit(EXIT_FAILURE);
 
             }
         }
     }
+
+    return 0;
 }
