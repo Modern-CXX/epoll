@@ -84,9 +84,16 @@ int main(int argc, char *argv[])
     for(;;){
         sleep(1); //test
         ret = write(fd, msg, strlen(msg));
+        if (errno != 0){
+            PERROR("write, ret: %d, errno: %d", ret, errno);
+        }
 
         char buf[1024] = {'\0'};
         ret = read(fd, buf, sizeof(buf) - 1);
+        if (errno != 0){
+            PERROR("read, ret: %d, errno: %d", ret, errno);
+        }
+
         if (ret > 0){
             PRINT_LOG("%s", buf);
         }
