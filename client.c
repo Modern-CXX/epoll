@@ -133,9 +133,6 @@ int main(int argc, char *argv[])
                 continue;
             }
             if (err != 0){
-                PERROR("read, ret: %d, errno: %d", ret, errno);
-            }
-            if (err != 0){
                 PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
             }
         }
@@ -145,7 +142,7 @@ int main(int argc, char *argv[])
         }
 
     }
-    
+
     ret = close(fd);
 
     return 0;
