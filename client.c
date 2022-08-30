@@ -21,18 +21,18 @@
         __FILE__, __LINE__, __func__, strerror(errno), ##__VA_ARGS__); \
 } while (0) /* ; no trailing semicolon here */
 
-void set_nonblock(int fd)
+int set_nonblock(int fd)
 {
     int flags = fcntl(fd, F_GETFL);
     if (flags == -1) {
         PERROR("fcntl");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     flags |= O_NONBLOCK;
     if (fcntl(fd, F_SETFL, flags) == -1) {
         PERROR("fcntl");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 }
 
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1){
         PERROR("socket");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     memset(&addr, 0, sizeof(addr));
@@ -67,16 +67,17 @@ int main(int argc, char *argv[])
     ret = inet_aton(host, (struct in_addr*)&addr.sin_addr.s_addr);
     if (ret == 0){
         PRINT_LOG("inet_aton failed");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     ret = connect(fd, (struct sockaddr*)&addr, sizeof(addr));
     if (ret == -1){
         PERROR("connect");
         close(fd);
+        return -1;
     }
 
-    PRINT_LOG("connecting to %s:%d", host, port);
+    PRINT_LOG("connect to %s:%d", host, port);
 
     set_nonblock(fd);
 
