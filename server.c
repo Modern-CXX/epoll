@@ -69,9 +69,11 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    ret = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &sockopt, sizeof(sockopt));
+    ret = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &sockopt,
+                                                            sizeof(sockopt));
     if (ret == -1){
         PERROR("setsockopt");
+        close(listenfd);
         return -1;
     }
 
@@ -104,6 +106,7 @@ int main(int argc, char *argv[])
         PERROR("epoll_ctl");
         return -1;
     }
+    PRINT_LOG("waiting for data input from clients");
 
     for (;;) {
         nfds = epoll_wait(efd, events, sizeof(events) / sizeof(events[0]),
@@ -189,7 +192,9 @@ int main(int argc, char *argv[])
                                         errno == EINTR){
                         break;
                     }
-                    PERROR("write, ret: %d, errno: %d", ret, errno);
+                    if (errno != 0){
+                        PERROR("write, ret: %d, errno: %d", ret, errno);
+                    }
                     if (ret == -1) {
                         break;
                     }
