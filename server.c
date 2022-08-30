@@ -31,12 +31,12 @@ int set_nonblock(int fd)
         PERROR("fcntl");
         return -1;
     }
-
     flags |= O_NONBLOCK;
     if (fcntl(fd, F_SETFL, flags) == -1) {
         PERROR("fcntl");
         return -1;
     }
+    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -127,9 +127,9 @@ int main(int argc, char *argv[])
                 }
 
                 conn_count++;
-                PRINT_LOG("accept connection from client %s:%u, conn_count: %d",
+                PRINT_LOG("accept client %s:%u, conn_count: %d",
                     inet_ntoa(peer_addr.sin_addr), peer_addr.sin_port,
-                    conn_count);
+                                                                    conn_count);
 
                 ev.events = EPOLLIN | EPOLLET;
                 ev.data.fd = connfd;
@@ -144,74 +144,96 @@ int main(int argc, char *argv[])
 
             } else if (events[i].events & EPOLLIN) {
                 int fd = events[i].data.fd;
-                int done = 0;
+                enum {count = 1024};
+                char buf[count + 1] = {'\0'}, *p = buf;
+                int len = 0;
+                int closed = 0;
+                int err = 0;
 
-                for (;;){
-                    char buf[1024] = {0};
-                    ret = read(fd, buf, sizeof(buf) - 1);
+                while (len < count){
+                    ret = read(fd, p, count - len);
+                    err = errno;
+
                     if (ret > 0){
-                        PRINT_LOG("%s", buf);
+                        len += ret;
+                        p += ret;
                     }
-                    if (errno == EAGAIN || errno == EWOULDBLOCK ||
-                                        errno == EPIPE || errno == ECONNRESET ||
-                                        errno == EINTR){
+
+                    if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
+                                                            err == ECONNRESET){
                         break;
                     }
-                    if (errno != 0){
-                        PERROR("read, ret: %d, errno: %d", ret, errno);
+                    if (err == EINTR){
+                        continue;
                     }
-                    if (ret == -1) {
-                        break;
+                    if (err != 0){
+                        PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
                     }
+                    
                     if (ret == 0){
                         close(fd);
-                        done = 1;
+                        closed = 1;
                         break;
                     }
                 }
-                if (done){
-                    continue;
+
+                if (len > 0){
+                    PRINT_LOG("ret:%d, err:%d, len:%d, %s", ret, err, len, buf);
                 }
 
-                ev.events = EPOLLOUT | EPOLLET;
-                ev.data.fd = fd;
-                if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-                    PERROR("epoll_ctl");
+                if (!closed){
+                    ev.events = EPOLLOUT | EPOLLET;
+                    ev.data.fd = fd;
+                    if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
+                        PERROR("epoll_ctl");
+                    }
                 }
 
             } else if (events[i].events & EPOLLOUT){
                 int fd = events[i].data.fd;
-                int done = 0;
+                enum {count = 1024};
+                char buf[count + 1] = {'\0'}, *p = buf;
+                int len = 0;
+                int closed = 0;
+                int err = 0;
 
-                for (;;){
+                while (len < count){
                     sleep(1); //test
                     const char *msg = "hello client ";
-                    ret = write(fd, msg, strlen(msg));
-                    if (errno == EAGAIN || errno == EWOULDBLOCK ||
-                                        errno == EPIPE || errno == ECONNRESET ||
-                                        errno == EINTR){
+                    memcpy(buf, msg, count);
+
+                    ret = write(fd, p, count - len);
+                    err = errno;
+
+                    if (ret > 0){
+                        len += ret;
+                        p += ret;
+                    }
+
+                    if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
+                                                            err == ECONNRESET){
                         break;
                     }
-                    if (errno != 0){
-                        PERROR("write, ret: %d, errno: %d", ret, errno);
+                    if (err == EINTR){
+                        continue;
                     }
-                    if (ret == -1) {
-                        break;
+                    if (err != 0){
+                        PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
                     }
-                    if (ret == 0) {
+
+                    if (ret == 0){
                         close(fd);
-                        done = 1;
+                        closed = 1;
                         break;
                     }
-                }
-                if (done){
-                    continue;
                 }
 
-                ev.events = EPOLLIN | EPOLLET;
-                ev.data.fd = fd;
-                if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-                    PERROR("epoll_ctl");
+                if (!closed){
+                    ev.events = EPOLLIN | EPOLLET;
+                    ev.data.fd = fd;
+                    if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
+                        PERROR("epoll_ctl");
+                    }
                 }
 
             } else {
