@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in my_addr, peer_addr;
     socklen_t addrlen = sizeof(peer_addr);
     int sockopt = 1;
+    int more_to_write = 0;
 
     if (argc == 2){
         int n = atoi(argv[1]);
@@ -113,6 +114,11 @@ int main(int argc, char *argv[])
                                                                 1000); //1 sec
         if (nfds == -1) {
             PERROR("epoll_wait");
+
+            for (int i = 0; i != sizeof(events) / sizeof(events[0]); i++){
+                close(events[i].data.fd);
+            }
+            return -1;
         }
 
         for (int i = 0; i < nfds; i++) {
@@ -121,15 +127,19 @@ int main(int argc, char *argv[])
                                 (struct sockaddr *) &peer_addr, &addrlen);
                 if (connfd == -1) {
                     PERROR("accept");
+                    continue;
                 }
                 if (set_nonblock(connfd)){
-                    return -1;
+                    PRINT_LOG("set_nonblock failed");
+                    continue;
                 }
 
                 conn_count++;
                 PRINT_LOG("accept client %s:%u, conn_count: %d",
                     inet_ntoa(peer_addr.sin_addr), peer_addr.sin_port,
                                                                     conn_count);
+
+                more_to_write = 0; // have more to write
 
                 ev.events = EPOLLIN | EPOLLET;
                 ev.data.fd = connfd;
@@ -158,6 +168,11 @@ int main(int argc, char *argv[])
                         len += ret;
                         p += ret;
                     }
+                    if (ret == 0){
+                        close(fd);
+                        closed = 1;
+                        break;
+                    }
 
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
                                                             err == ECONNRESET){
@@ -167,13 +182,8 @@ int main(int argc, char *argv[])
                         continue;
                     }
                     if (err != 0){
-                        PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
-                    }
-                    
-                    if (ret == 0){
-                        close(fd);
-                        closed = 1;
-                        break;
+                        PRINT_LOG("ret:%d, err:%d, %s", ret, err,
+                                                                strerror(err));
                     }
                 }
 
@@ -209,6 +219,11 @@ int main(int argc, char *argv[])
                         len += ret;
                         p += ret;
                     }
+                    if (ret == 0){
+                        close(fd);
+                        closed = 1;
+                        break;
+                    }
 
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
                                                             err == ECONNRESET){
@@ -218,19 +233,20 @@ int main(int argc, char *argv[])
                         continue;
                     }
                     if (err != 0){
-                        PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
-                    }
-
-                    if (ret == 0){
-                        close(fd);
-                        closed = 1;
-                        break;
+                        PRINT_LOG("ret:%d, err:%d, %s", ret, err,
+                                                                strerror(err));
                     }
                 }
 
                 if (!closed){
                     ev.events = EPOLLIN | EPOLLET;
                     ev.data.fd = fd;
+
+                    // generate more EPOLLOUT to write more
+                    // if (more_to_write++ < 3) {
+                    //     ev.events = EPOLLOUT | EPOLLET;
+                    // }
+
                     if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
                         PERROR("epoll_ctl");
                     }
