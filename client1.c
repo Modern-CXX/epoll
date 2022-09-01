@@ -82,11 +82,14 @@ int main(int argc, char *argv[])
 
     set_nonblock(fd);
 
+    // ret = write(fd, msg, strlen(msg)); // test with one write
+
     for(;;){
         //write
         enum {count = 1024};
         char buf[count + 1] = {'\0'}, *p = buf;
         int len = 0;
+        int closed = 0;
 
         while (len < count) {
             sleep(1); //test
@@ -97,6 +100,11 @@ int main(int argc, char *argv[])
             if (ret > 0){
                 len += ret;
                 p += ret;
+            }
+            if (ret == 0){
+                close(fd);
+                closed = 1;
+                break;
             }
 
             if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
@@ -124,6 +132,11 @@ int main(int argc, char *argv[])
                 len += ret;
                 p += ret;
             }
+            if (ret == 0){
+                close(fd);
+                closed = 1;
+                break;
+            }
 
             if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
                                                             err == ECONNRESET){
@@ -135,12 +148,15 @@ int main(int argc, char *argv[])
             if (err != 0){
                 PRINT_LOG("ret:%d, err:%d, %s", ret, err, strerror(err));
             }
-        }
 
+        }
         if (len > 0){
             PRINT_LOG("ret:%d, err:%d, len:%d, %s", ret, err, len, buf);
         }
 
+        if (closed){
+            break;
+        }
     }
 
     ret = close(fd);
