@@ -1,0 +1,19 @@
+Generates more out events to write more.txt
+
+https://lkml.iu.edu/hypermail/linux/kernel/0810.3/0913.html
+
+Re: unexpected extra pollout events from epoll
+From: Davide Libenzi 
+Date: Sun Oct 26 2008
+
+> > The best way to do it ATM, is to wait for POLLOUT only when
+> > really needed.
+> 
+> I'm a little unclear how to do this. If I set the epoll_wait call to 
+> wait for just epollin events, that's fine. But when I send a large 
+> buffer of data and use epoll_ctl to look for epollin|epollout events, 
+> don't I have the same problem? 
+
+You do that by writing data until it's finished, or you get EAGAIN. If you 
+get EAGAIN, you listen for EPOLLOUT.
+Reading is same, but you'd wait for EPOLLIN.
