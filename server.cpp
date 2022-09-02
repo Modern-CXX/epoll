@@ -47,7 +47,7 @@ int set_nonblock(int fd)
     return 0;
 }
 
-void *update_events()
+void update_events()
 {
     struct epoll_event ev;
     for (;;){
