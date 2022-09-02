@@ -1,4 +1,4 @@
-//server.c
+//server.cpp
 
 #include <sys/epoll.h>
 #include <stdio.h>
@@ -11,6 +11,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <thread>
+#include <mutex>
+#include <string>
+#include <vector>
 
 #define PRINT_LOG(fmt, ...) do \
 { \
@@ -23,6 +27,10 @@
     printf("%s:%d:%s: %s. " fmt "\n", \
         __FILE__, __LINE__, __func__, strerror(errno), ##__VA_ARGS__); \
 } while (0) /* ; no trailing semicolon here */
+
+int efd;
+std::vector<int> vfd;
+std::mutex lock;
 
 int set_nonblock(int fd)
 {
@@ -39,25 +47,44 @@ int set_nonblock(int fd)
     return 0;
 }
 
-int main(int argc, char *argv[])
+void *update_events()
+{
+    struct epoll_event ev;
+    for (;;){
+        sleep(1); //test
+
+        std::lock_guard<std::mutex> guard(lock);
+        // PRINT_LOG("vfd: %lu", vfd.size()); //
+
+        for (auto fd : vfd){
+            ev.events = EPOLLOUT | EPOLLET;
+            ev.data.fd = fd;
+            if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
+                PERROR("epoll_ctl");
+            }
+            sleep(1); //test
+
+            ev.events = EPOLLIN | EPOLLET;
+            ev.data.fd = fd;
+            if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
+                PERROR("epoll_ctl");
+            }
+        }
+    }
+}
+
+int main()
 {
     struct epoll_event ev, events[10];
-    int listenfd, connfd, nfds, efd;
+    int listenfd, connfd, nfds;
 
     /* set up listening socket */
     int port = 8000;
-    int ret = 0, conn_count = 0;
+    int ret = 0;
     struct sockaddr_in my_addr, peer_addr;
     socklen_t addrlen = sizeof(peer_addr);
     int sockopt = 1;
-    int more_to_write = 0;
-
-    if (argc == 2){
-        int n = atoi(argv[1]);
-        if (n != 0) {
-            port = n;
-        }
-    }
+    int seq = 0;
 
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin_port = htons(port);
@@ -109,14 +136,16 @@ int main(int argc, char *argv[])
     }
     PRINT_LOG("waiting for data input from clients");
 
+    std::thread(update_events).detach();
+
     for (;;) {
         nfds = epoll_wait(efd, events, sizeof(events) / sizeof(events[0]),
                                                                 1000); //1 sec
         if (nfds == -1) {
             PERROR("epoll_wait");
-
             for (int i = 0; i != sizeof(events) / sizeof(events[0]); i++){
-                close(events[i].data.fd);
+                PRINT_LOG();
+                close(events[i].data.fd); //
             }
             return -1;
         }
@@ -134,12 +163,8 @@ int main(int argc, char *argv[])
                     continue;
                 }
 
-                conn_count++;
-                PRINT_LOG("accept client %s:%u, conn_count: %d",
-                    inet_ntoa(peer_addr.sin_addr), peer_addr.sin_port,
-                                                                    conn_count);
-
-                more_to_write = 0; // have more to write
+                PRINT_LOG("accept client %s:%u", inet_ntoa(peer_addr.sin_addr),
+                                                            peer_addr.sin_port);
 
                 ev.events = EPOLLIN | EPOLLET;
                 ev.data.fd = connfd;
@@ -147,33 +172,44 @@ int main(int argc, char *argv[])
                     PERROR("epoll_ctl");
                 }
 
+                {
+                    std::lock_guard<std::mutex> guard(lock);
+                    vfd.push_back(connfd);
+                }
+
             } else if (events[i].events & (EPOLLHUP | EPOLLERR)) {
                 int fd = events[i].data.fd;
-                close(fd);
+
+                {
+                    std::lock_guard<std::mutex> guard(lock);
+                    close(fd);
+                    std::erase(vfd, fd);
+                }
+
                 PRINT_LOG("EPOLLHUP | EPOLLERR");
 
             } else if (events[i].events & EPOLLIN) {
                 int fd = events[i].data.fd;
                 enum {count = 1024};
                 char buf[count + 1] = {'\0'}, *p = buf;
-                int len = 0;
-                int closed = 0;
-                int err = 0;
+                size_t len = 0;
 
                 while (len < count){
                     ret = read(fd, p, count - len);
-                    err = errno;
-
+                    int err = errno;
                     if (ret > 0){
                         len += ret;
                         p += ret;
                     }
+
                     if (ret == 0){
-                        close(fd);
-                        closed = 1;
+                        {
+                            std::lock_guard<std::mutex> guard(lock);
+                            close(fd);
+                            std::erase(vfd, fd);
+                        }
                         break;
                     }
-
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
                                                             err == ECONNRESET){
                         break;
@@ -182,49 +218,40 @@ int main(int argc, char *argv[])
                         continue;
                     }
                     if (err != 0){
-                        PRINT_LOG("ret:%d, err:%d, %s", ret, err,
+                        PRINT_LOG("ret: %d, err: %d, %s", ret, err,
                                                                 strerror(err));
                     }
                 }
 
-                if (len > 0){
-                    PRINT_LOG("ret:%d, err:%d, len:%d, %s", ret, err, len, buf);
-                }
-
-                if (!closed){
-                    ev.events = EPOLLOUT | EPOLLET;
-                    ev.data.fd = fd;
-                    if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-                        PERROR("epoll_ctl");
-                    }
+                if (len > 0) {
+                    PRINT_LOG("%s", buf);
                 }
 
             } else if (events[i].events & EPOLLOUT){
+                sleep(1); //
                 int fd = events[i].data.fd;
                 enum {count = 1024};
                 char buf[count + 1] = {'\0'}, *p = buf;
-                int len = 0;
-                int closed = 0;
-                int err = 0;
+                std::string msg = "hello client " + std::to_string(seq++);
+                strncpy(buf, msg.c_str(), count);
+                size_t len = 0;
 
                 while (len < count){
-                    sleep(1); //test
-                    const char *msg = "hello client ";
-                    memcpy(buf, msg, count);
-
                     ret = write(fd, p, count - len);
-                    err = errno;
-
+                    int err = errno;
                     if (ret > 0){
                         len += ret;
                         p += ret;
                     }
+
                     if (ret == 0){
-                        close(fd);
-                        closed = 1;
+                        {
+                            std::lock_guard<std::mutex> guard(lock);
+                            close(fd);
+                            std::erase(vfd, fd);
+                        }
                         break;
                     }
-
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
                                                             err == ECONNRESET){
                         break;
@@ -233,29 +260,20 @@ int main(int argc, char *argv[])
                         continue;
                     }
                     if (err != 0){
-                        PRINT_LOG("ret:%d, err:%d, %s", ret, err,
+                        PRINT_LOG("ret: %d, err: %d, %s", ret, err,
                                                                 strerror(err));
-                    }
-                }
-
-                if (!closed){
-                    ev.events = EPOLLIN | EPOLLET;
-                    ev.data.fd = fd;
-
-                    // generate more EPOLLOUT to write more
-                    // if (more_to_write++ < 3) {
-                    //     ev.events = EPOLLOUT | EPOLLET;
-                    // }
-
-                    if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-                        PERROR("epoll_ctl");
                     }
                 }
 
             } else {
                 PRINT_LOG("unknown event");
                 int fd = events[i].data.fd;
-                close(fd);
+
+                {
+                    std::lock_guard<std::mutex> guard(lock);
+                    close(fd);
+                    std::erase(vfd, fd);
+                }
 
             }
         }
