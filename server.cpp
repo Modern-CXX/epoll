@@ -31,6 +31,7 @@
 int efd;
 std::vector<int> vfd;
 std::mutex lock;
+int time_to_write = 0;
 
 int set_nonblock(int fd)
 {
@@ -47,25 +48,25 @@ int set_nonblock(int fd)
     return 0;
 }
 
-void update_events()
+void *update_events()
 {
     struct epoll_event ev;
     for (;;){
         sleep(1); //test
+        time_to_write = !time_to_write;
 
         std::lock_guard<std::mutex> guard(lock);
-        // PRINT_LOG("vfd: %lu", vfd.size()); //
+        // PRINT_LOG("vfd: %lu, time_to_write: %d", vfd.size(), time_to_write);
 
         for (auto fd : vfd){
-            ev.events = EPOLLOUT | EPOLLET;
-            ev.data.fd = fd;
-            if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-                PERROR("epoll_ctl");
-            }
-            sleep(1); //test
-
+            // PRINT_LOG("fd: %d, time_to_write: %d", fd, time_to_write);
             ev.events = EPOLLIN | EPOLLET;
             ev.data.fd = fd;
+
+            if (time_to_write){
+                ev.events = EPOLLOUT | EPOLLET;
+            }
+
             if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
                 PERROR("epoll_ctl");
             }
@@ -141,11 +142,12 @@ int main()
     for (;;) {
         nfds = epoll_wait(efd, events, sizeof(events) / sizeof(events[0]),
                                                                 1000); //1 sec
+        // PRINT_LOG("epoll_wait");
         if (nfds == -1) {
             PERROR("epoll_wait");
             for (int i = 0; i != sizeof(events) / sizeof(events[0]); i++){
                 PRINT_LOG();
-                close(events[i].data.fd); //
+                close(events[i].data.fd);
             }
             return -1;
         }
@@ -179,10 +181,10 @@ int main()
 
             } else if (events[i].events & (EPOLLHUP | EPOLLERR)) {
                 int fd = events[i].data.fd;
+                close(fd);
 
                 {
                     std::lock_guard<std::mutex> guard(lock);
-                    close(fd);
                     std::erase(vfd, fd);
                 }
 
@@ -203,11 +205,13 @@ int main()
                     }
 
                     if (ret == 0){
+                        close(fd);
+
                         {
                             std::lock_guard<std::mutex> guard(lock);
-                            close(fd);
                             std::erase(vfd, fd);
                         }
+                        
                         break;
                     }
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
@@ -228,7 +232,6 @@ int main()
                 }
 
             } else if (events[i].events & EPOLLOUT){
-                sleep(1); //
                 int fd = events[i].data.fd;
                 enum {count = 1024};
                 char buf[count + 1] = {'\0'}, *p = buf;
@@ -245,11 +248,13 @@ int main()
                     }
 
                     if (ret == 0){
+                        close(fd);
+
                         {
                             std::lock_guard<std::mutex> guard(lock);
-                            close(fd);
                             std::erase(vfd, fd);
                         }
+
                         break;
                     }
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
@@ -268,10 +273,10 @@ int main()
             } else {
                 PRINT_LOG("unknown event");
                 int fd = events[i].data.fd;
+                close(fd);
 
                 {
                     std::lock_guard<std::mutex> guard(lock);
-                    close(fd);
                     std::erase(vfd, fd);
                 }
 
