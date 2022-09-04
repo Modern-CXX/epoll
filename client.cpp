@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 
     for(;;){
         //write
-        sleep(1);
+        // sleep(1);
         std::string msg = argv[3] + std::to_string(seq++);
         ret = write(fd, msg.c_str(), msg.size());
 
