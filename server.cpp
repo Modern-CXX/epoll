@@ -48,11 +48,11 @@ int set_nonblock(int fd)
     return 0;
 }
 
-void *update_events()
+void update_events()
 {
     struct epoll_event ev;
     for (;;){
-        sleep(1); //test
+        // sleep(1); //test
         time_to_write = !time_to_write;
 
         std::lock_guard<std::mutex> guard(lock);
@@ -211,7 +211,7 @@ int main()
                             std::lock_guard<std::mutex> guard(lock);
                             std::erase(vfd, fd);
                         }
-                        
+
                         break;
                     }
                     if (err == EAGAIN || err == EWOULDBLOCK || err == EPIPE ||
