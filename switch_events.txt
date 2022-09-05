@@ -1,6 +1,3 @@
-Generates more out events to write more, 
-or more in events to read more.
-
 https://lkml.iu.edu/hypermail/linux/kernel/0810.3/0913.html
 
 Re: unexpected extra pollout events from epoll
