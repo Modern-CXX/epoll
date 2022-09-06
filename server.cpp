@@ -51,6 +51,8 @@ int set_nonblock(int fd)
 void update_events()
 {
     struct epoll_event ev;
+    int ret = 0;
+    int err = 0;
     for (;;){
         // sleep(1); //test
         time_to_write = !time_to_write;
@@ -67,7 +69,12 @@ void update_events()
                 ev.events = EPOLLOUT | EPOLLET;
             }
 
-            if (epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev) == -1) {
+            ret = epoll_ctl(efd, EPOLL_CTL_MOD, fd, &ev);
+            err = errno;
+            if (err == EBADF){
+                continue;
+            }
+            if (ret == -1) {
                 PERROR("epoll_ctl");
             }
         }
