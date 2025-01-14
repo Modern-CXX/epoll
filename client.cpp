@@ -88,9 +88,15 @@ int main(int argc, char *argv[]) {
   // signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
+    // sleep(1);
+
     // write
-    sleep(1);
-    std::string client_tag = argv[3] + std::to_string(seq++);
+    std::string client_tag = std::string("hello from client ") + argv[3] +
+                             std::string("_") + std::to_string(seq++) +
+                             std::string("\n");
+
+    // PRINT_LOG("%lu: [%s]", client_tag.size(), client_tag.c_str());
+
     ret = write(fd, client_tag.c_str(), client_tag.size());
 
     // read
@@ -98,7 +104,7 @@ int main(int argc, char *argv[]) {
     char buf[count + 1] = {'\0'};
     ret = read(fd, buf, count);
     if (ret > 0) {
-      PRINT_LOG("%s", buf);
+      printf("%s", buf);
     }
   }
 

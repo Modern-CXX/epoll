@@ -136,8 +136,8 @@ int main() {
           continue;
         }
 
-        PRINT_LOG("accept client %s:%u", inet_ntoa(peer_addr.sin_addr),
-                  peer_addr.sin_port);
+        PRINT_LOG("accept client %s:%u, fd:%d", inet_ntoa(peer_addr.sin_addr),
+                  peer_addr.sin_port, conn_sock);
 
         // 2/4. register the new socket using EPOLLIN | EPOLLET for reading
         // when accepting new connection ,
@@ -149,14 +149,14 @@ int main() {
         }
 
       } else {
-        char buffer[BUFFER_SIZE];
         int client_sock = events[i].data.fd;
+        char buffer[BUFFER_SIZE] = {'\0'};
 
         // partial read or write not handled right now.
 
         if (events[i].events & EPOLLIN) {
           ret = read(client_sock, buffer, sizeof(buffer));
-          PRINT_LOG("%.*s", (int)ret, buffer);
+          PRINT_LOG("fd:%d, %s", client_sock, buffer);
 
           // 3/4. change to EPOLLOUT | EPOLLET when handling EPOLLIN ,
 
@@ -172,17 +172,11 @@ int main() {
           }
 
           if (ret == 0) {
-            PRINT_LOG("Client disconnected: fd=%d", client_sock);
+            PRINT_LOG("client disconnected: fd:%d", client_sock);
             close(client_sock);
           }
-        }
-
-        // do not use `else` to combine the above and the below if statements.
-        // we may use both EPOLLIN | EPOLLOUT | EPOLLET when accept new
-        // connection. so it may contains both EPOLLIN | EPOLLOUT.
-
-        if (events[i].events & EPOLLOUT) {
-          const char *msg = "hello client!";
+        } else if (events[i].events & EPOLLOUT) {
+          const char *msg = "hello client\n";
           ret = write(client_sock, msg, strlen(msg));
 
           // 4/4. change to EPOLLIN | EPOLLET when handling EPOLLOUT ,
@@ -199,7 +193,7 @@ int main() {
           }
 
           if (ret == 0) {
-            PRINT_LOG("Client disconnected: fd=%d", client_sock);
+            PRINT_LOG("client disconnected: fd:%d", client_sock);
             close(client_sock);
           }
         }
