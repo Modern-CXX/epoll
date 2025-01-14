@@ -1,8 +1,10 @@
 // client.cpp
 
-// $ g++ -Wall -Wextra client.cpp -std=c++2a -g -o client
-// $ ./client 192.168.1.16 8000 client_tom
-// $ ./client 192.168.1.16 8000 client_jerry
+// $ g++ -Wall -Wextra -std=c++2a client.cpp -g -o client
+
+// use different tags to identify clients
+// $ ./client 192.168.1.16 8000 "aaa"
+// $ ./client 192.168.1.16 8000 "     bbb"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -50,7 +52,7 @@ int main(int argc, char *argv[]) {
   int seq = 0;
 
   if (argc != 4) {
-    PRINT_LOG("Usage: %s <host> <port> <msg>\n", argv[0]);
+    PRINT_LOG("Usage: %s <host> <port> <client_tag>\n", argv[0]);
     return 1;
   }
 
@@ -88,8 +90,8 @@ int main(int argc, char *argv[]) {
   for (;;) {
     // write
     sleep(1);
-    std::string msg = argv[3] + std::to_string(seq++);
-    ret = write(fd, msg.c_str(), msg.size());
+    std::string client_tag = argv[3] + std::to_string(seq++);
+    ret = write(fd, client_tag.c_str(), client_tag.size());
 
     // read
     enum { count = 1024 };
