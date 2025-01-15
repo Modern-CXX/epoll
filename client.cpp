@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,7 +74,7 @@ int main(int argc, char *argv[]) {
   PRINT_LOG("connect to server %s:%d", host, port);
 
   set_nonblocking(fd);
-  // signal(SIGPIPE, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
     // sleep(1); // test
@@ -85,11 +86,36 @@ int main(int argc, char *argv[]) {
       printf("%s", buf);
     }
 
+    if (ret == -1) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        PERROR("read");
+        close(fd);
+        break;
+      }
+    } else if (ret == 0) {
+      PRINT_LOG("server disconnected: fd:%d", fd);
+      close(fd);
+      break;
+    }
+
     // write
-    std::string client_tag = std::string("hello from client ") + argv[3] +
+    std::string client_tag = argv[3];
+    std::string msg = std::string("hello from client ") + client_tag +
                              std::string("_") + std::to_string(seq++) +
                              std::string("\n");
-    ret = write(fd, client_tag.c_str(), client_tag.size());
+    ret = write(fd, msg.c_str(), msg.size());
+
+    if (ret == -1) {
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        PERROR("write");
+        close(fd);
+        break;
+      }
+    } else if (ret == 0) {
+      PRINT_LOG("client disconnected: fd:%d", fd);
+      close(fd);
+      break;
+    }
   }
 
   ret = close(fd);
