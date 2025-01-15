@@ -29,18 +29,9 @@
            strerror(errno), ##__VA_ARGS__);                                    \
   } while (0) /* ; no trailing semicolon here */
 
-int set_nonblock(int fd) {
-  int flags = fcntl(fd, F_GETFL);
-  if (flags == -1) {
-    PERROR("fcntl");
-    return -1;
-  }
-  flags |= O_NONBLOCK;
-  if (fcntl(fd, F_SETFL, flags) == -1) {
-    PERROR("fcntl");
-    return -1;
-  }
-  return 0;
+int set_nonblocking(int fd) {
+  int flags = fcntl(fd, F_GETFL, 0);
+  return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 int main(int argc, char *argv[]) {
@@ -84,7 +75,7 @@ int main(int argc, char *argv[]) {
 
   PRINT_LOG("connect to server %s:%d", host, port);
 
-  set_nonblock(fd);
+  set_nonblocking(fd);
   // signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
