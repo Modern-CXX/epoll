@@ -1,15 +1,12 @@
 // client.cpp
 
 // $ g++ -Wall -Wextra -std=c++2a client.cpp -g -o client
-
-// use different tags to identify clients
-// $ ./client 192.168.1.16 8000 "aaa"
-// $ ./client 192.168.1.16 8000 "     bbb"
+// $ ./client 192.168.1.16 8000 "foo"
+// $ ./client 192.168.1.16 8000 "     bar"
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,24 +76,20 @@ int main(int argc, char *argv[]) {
   // signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
-    // sleep(1);
+    // sleep(1); // test
+
+    // read
+    char buf[1024] = {'\0'};
+    ret = read(fd, buf, sizeof(buf) - 1);
+    if (ret > 0) {
+      printf("%s", buf);
+    }
 
     // write
     std::string client_tag = std::string("hello from client ") + argv[3] +
                              std::string("_") + std::to_string(seq++) +
                              std::string("\n");
-
-    // PRINT_LOG("%lu: [%s]", client_tag.size(), client_tag.c_str());
-
     ret = write(fd, client_tag.c_str(), client_tag.size());
-
-    // read
-    enum { count = 1024 };
-    char buf[count + 1] = {'\0'};
-    ret = read(fd, buf, count);
-    if (ret > 0) {
-      printf("%s", buf);
-    }
   }
 
   ret = close(fd);

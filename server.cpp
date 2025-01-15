@@ -1,6 +1,7 @@
 // server.cpp
 
-// $ g++ -Wall -Wextra server.cpp -std=c++2a -g -o server && ./server 8000
+// $ g++ -Wall -Wextra server.cpp -std=c++2a -g -o server
+// $ ./server 8000
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -85,8 +86,6 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  // 1/4. register the listen_sock using EPOLLIN with epoll,
-
   event.events = EPOLLIN;
   event.data.fd = listen_sock;
   if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) < 0) {
@@ -96,6 +95,8 @@ int main(int argc, char *argv[]) {
   }
 
   for (;;) {
+    // sleep(1); // test
+
     int nfds =
         epoll_wait(epoll_fd, events, sizeof(events) / sizeof(events[0]), 1000);
 
@@ -125,10 +126,7 @@ int main(int argc, char *argv[]) {
         PRINT_LOG("accept client %s:%u, fd:%d", inet_ntoa(peer_addr.sin_addr),
                   peer_addr.sin_port, conn_sock);
 
-        // 2/4. register the new socket using EPOLLIN | EPOLLET for reading
-        // when accepting new connection ,
-
-        event.events = EPOLLIN | EPOLLET;
+        event.events = EPOLLIN | EPOLLOUT | EPOLLET;
         event.data.fd = conn_sock;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, conn_sock, &event) == -1) {
           PERROR("epoll_ctl: conn_sock");
@@ -143,8 +141,8 @@ int main(int argc, char *argv[]) {
         // partial read or write is not handled right now.
 
         if (events[i].events & EPOLLIN) {
-          ret = read(client_sock, buffer, sizeof(buffer));
-          PRINT_LOG("fd:%d, %s", client_sock, buffer);
+          ret = read(client_sock, buffer, sizeof(buffer) - 1);
+          printf("fd:%d, %s", client_sock, buffer);
 
           if (ret == -1) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -157,17 +155,9 @@ int main(int argc, char *argv[]) {
             close(client_sock);
             continue;
           }
+        }
 
-          // 3/4. change to EPOLLOUT | EPOLLET when handling EPOLLIN ,
-
-          event.events = EPOLLOUT | EPOLLET;
-          event.data.fd = client_sock;
-          if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
-            PERROR("epoll_ctl: client_sock");
-            close(client_sock);
-          }
-
-        } else if (events[i].events & EPOLLOUT) {
+        if (events[i].events & EPOLLOUT) {
           const char *msg = "hello client\n";
           ret = write(client_sock, msg, strlen(msg));
 
@@ -182,15 +172,13 @@ int main(int argc, char *argv[]) {
             close(client_sock);
             continue;
           }
+        }
 
-          // 4/4. change to EPOLLIN | EPOLLET when handling EPOLLOUT ,
-
-          event.events = EPOLLIN | EPOLLET;
-          event.data.fd = client_sock;
-          if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
-            PERROR("epoll_ctl: client_sock");
-            close(client_sock);
-          }
+        event.events = EPOLLIN | EPOLLOUT | EPOLLET;
+        event.data.fd = client_sock;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
+          PERROR("epoll_ctl: client_sock");
+          close(client_sock);
         }
       }
     }
