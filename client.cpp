@@ -33,17 +33,17 @@ int set_nonblocking(int fd) {
 }
 
 int main(int argc, char *argv[]) {
-  int fd;
-  int ret;
-  struct sockaddr_in addr;
-  const char *host;
-  int port;
-  int seq = 0;
-
   if (argc != 4) {
     PRINT_LOG("Usage: %s <host> <port> <client_tag>\n", argv[0]);
     return 1;
   }
+
+  struct sockaddr_in addr;
+  const char *host;
+  int port;
+  int fd;
+  int ret;
+  int seq = 0;
 
   host = argv[1];
   port = atoi(argv[2]);
@@ -101,8 +101,8 @@ int main(int argc, char *argv[]) {
     // write
     std::string client_tag = argv[3];
     std::string msg = std::string("hello from client ") + client_tag +
-                             std::string("_") + std::to_string(seq++) +
-                             std::string("\n");
+                      std::string("_") + std::to_string(seq++) +
+                      std::string("\n");
     ret = write(fd, msg.c_str(), msg.size());
 
     if (ret == -1) {

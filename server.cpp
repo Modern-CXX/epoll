@@ -36,7 +36,7 @@ int set_nonblocking(int fd) {
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     PRINT_LOG("Usage: %s <port>", argv[0]);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   int listen_sock, epoll_fd, conn_sock;
@@ -54,26 +54,26 @@ int main(int argc, char *argv[]) {
   listen_sock = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_sock < 0) {
     PERROR("socket");
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &sockopt,
                  sizeof(sockopt)) == -1) {
     PERROR("setsockopt");
     close(listen_sock);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   if (bind(listen_sock, (struct sockaddr *)&my_addr, sizeof(my_addr)) < 0) {
     PERROR("bind");
     close(listen_sock);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   if (listen(listen_sock, SOMAXCONN) < 0) {
     PERROR("listen");
     close(listen_sock);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   PRINT_LOG("listen on port: %d", port);
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   if (epoll_fd == -1) {
     PERROR("epoll_create1");
     close(listen_sock);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   event.events = EPOLLIN;
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_sock, &event) < 0) {
     PERROR("epoll_ctl: listen_sock");
     close(listen_sock);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   for (;;) {
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
       for (int i = 0; i != sizeof(events) / sizeof(events[0]); i++) {
         close(events[i].data.fd);
       }
-      exit(EXIT_FAILURE);
+      return -1;
     }
 
     for (int i = 0; i < nfds; i++) {
