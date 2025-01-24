@@ -118,13 +118,13 @@ int main(int argc, char *argv[]) {
           continue;
         }
 
+        PRINT_LOG("accept client %s:%u, fd:%d", inet_ntoa(peer_addr.sin_addr),
+                  peer_addr.sin_port, conn_sock);
+
         if (set_nonblocking(conn_sock) == -1) {
           PERROR("set_nonblocking");
           continue;
         }
-
-        PRINT_LOG("accept client %s:%u, fd:%d", inet_ntoa(peer_addr.sin_addr),
-                  peer_addr.sin_port, conn_sock);
 
         event.events = EPOLLIN | EPOLLOUT | EPOLLET;
         event.data.fd = conn_sock;
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
           printf("fd:%d, %s", client_sock, buffer);
 
           if (ret == -1) {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            if (errno != EAGAIN && errno != EINTR) {
               PERROR("read");
               close(client_sock);
               continue;
@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
           ret = write(client_sock, msg, strlen(msg));
 
           if (ret == -1) {
-            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            if (errno != EAGAIN && errno != EINTR) {
               PERROR("write");
               close(client_sock);
               continue;
