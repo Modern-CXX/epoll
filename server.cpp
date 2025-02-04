@@ -95,6 +95,10 @@ int main(int argc, char *argv[]) {
   }
 
   for (;;) {
+    // Clients do need to implement delays or throttling to avoid flooding the
+    // server with messages (which could resemble a denial-of-service (DoS)
+    // attack, causing the server to become overwhelmed by a single client).
+
     // sleep(1); // test
 
     int nfds =
@@ -135,50 +139,66 @@ int main(int argc, char *argv[]) {
 
       } else {
         int client_sock = events[i].data.fd;
-        char buffer[1024] = {'\0'};
         int ret = 0;
 
-        // partial read or write is not handled right now.
-
         if (events[i].events & EPOLLIN) {
-          ret = read(client_sock, buffer, sizeof(buffer) - 1);
-          printf("fd:%d, %s", client_sock, buffer);
+          for (;;) {
+            char buf[1024] = {'\0'};
+            ret = read(client_sock, buf, sizeof(buf) - 1);
+            printf("fd:%d, %s", client_sock, buf);
 
-          if (ret == -1) {
-            if (errno != EAGAIN && errno != EINTR) {
-              PERROR("read");
+            if (ret == -1) {
+              if (errno == EAGAIN) {
+                break;
+              } else {
+                PERROR("read");
+                close(client_sock);
+                break;
+              }
+            } else if (ret == 0) {
+              PRINT_LOG("client disconnected: fd:%d", client_sock);
               close(client_sock);
-              continue;
+              break;
             }
-          } else if (ret == 0) {
-            PRINT_LOG("client disconnected: fd:%d", client_sock);
-            close(client_sock);
-            continue;
+
+            // a newline character is expected in a string message from clients.
+            // if clients are sending data of struct type, the size should be
+            // calculated.
+
+            if (strchr(buf, '\n')) {
+              break;
+            }
           }
         }
 
         if (events[i].events & EPOLLOUT) {
           const char *msg = "hello client\n";
-          ret = write(client_sock, msg, strlen(msg));
+          for (;;) {
+            int count = strlen(msg);
+            const char *buf = msg;
+            ret = write(client_sock, buf, count);
 
-          if (ret == -1) {
-            if (errno != EAGAIN && errno != EINTR) {
-              PERROR("write");
+            if (ret == -1) {
+              if (errno == EAGAIN) {
+                break;
+              } else {
+                PERROR("write");
+                close(client_sock);
+                break;
+              }
+            } else if (ret == 0) {
+              PRINT_LOG("client disconnected: fd:%d", client_sock);
               close(client_sock);
-              continue;
+              break;
             }
-          } else if (ret == 0) {
-            PRINT_LOG("client disconnected: fd:%d", client_sock);
-            close(client_sock);
-            continue;
-          }
-        }
 
-        event.events = EPOLLIN | EPOLLOUT | EPOLLET;
-        event.data.fd = client_sock;
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
-          PERROR("epoll_ctl: client_sock");
-          close(client_sock);
+            if (ret == count) {
+              break;
+            } else {
+              buf += ret;
+              count -= ret;
+            }
+          }
         }
       }
     }
