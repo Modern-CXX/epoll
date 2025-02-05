@@ -3,6 +3,12 @@
 // $ g++ -Wall -Wextra server.cpp -std=c++2a -g -o server
 // $ ./server 8000
 
+// 1. the order of read and write operation should not matter. the read and
+// write should be independent and should not have deep coupling together.
+
+// 2. eithor server or client can stop write when they have nothing to write.
+// this should not stop the read though.
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -129,6 +135,7 @@ int main(int argc, char *argv[]) {
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, conn_sock, &event) == -1) {
           PERROR("epoll_ctl: conn_sock");
           close(conn_sock);
+          continue;
         }
 
       } else {
@@ -160,7 +167,6 @@ int main(int argc, char *argv[]) {
             // a newline character is expected in a string message from clients.
             // if clients are sending data of struct type, the size should be
             // calculated.
-
             if (strchr(buf, '\n')) {
               break;
             }
@@ -198,6 +204,15 @@ int main(int argc, char *argv[]) {
               count -= ret;
             }
           }
+        }
+
+        // this is needed if the clients do not write or have nothing to write
+        event.events = EPOLLIN | EPOLLOUT | EPOLLET;
+        event.data.fd = client_sock;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
+          PERROR("epoll_ctl: client_sock");
+          close(client_sock);
+          continue;
         }
       }
     }

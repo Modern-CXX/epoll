@@ -85,6 +85,7 @@ int main(int argc, char *argv[]) {
     sleep(1); // test, simulate a heavy task
 
     // read
+
     char buf[1024] = {'\0'};
     ret = read(fd, buf, sizeof(buf) - 1);
     if (ret > 0) {
@@ -104,6 +105,7 @@ int main(int argc, char *argv[]) {
     }
 
     // write
+
     std::string client_tag = argv[3];
     std::string msg = std::string("hello from client ") + client_tag +
                       std::string("_") + std::to_string(seq++) +
