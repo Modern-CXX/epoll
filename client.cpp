@@ -1,8 +1,8 @@
 // client.cpp
 
 // $ g++ -Wall -Wextra -std=c++2a client.cpp -g -o client
-// $ ./client 192.168.1.16 8000 "foo"
-// $ ./client 192.168.1.16 8000 "     bar"
+// $ ./client 192.168.1.16 8000 "tom"
+// $ ./client 192.168.1.16 8000 "     jerry"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -77,11 +77,12 @@ int main(int argc, char *argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
-    // Clients do need to implement delays or throttling to avoid flooding the
-    // server with messages (which could resemble a denial-of-service (DoS)
-    // attack, causing the server to become overwhelmed by a single client).
+    // Clients need to do some heady tasks or delays or throttling to avoid
+    // flooding the server with messages (which could resemble a
+    // denial-of-service (DoS) attack, causing the server to become overwhelmed
+    // by a single client).
 
-    sleep(1); // test
+    sleep(1); // test, simulate a heavy task
 
     // read
     char buf[1024] = {'\0'};

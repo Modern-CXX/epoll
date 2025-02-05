@@ -95,12 +95,6 @@ int main(int argc, char *argv[]) {
   }
 
   for (;;) {
-    // Clients do need to implement delays or throttling to avoid flooding the
-    // server with messages (which could resemble a denial-of-service (DoS)
-    // attack, causing the server to become overwhelmed by a single client).
-
-    // sleep(1); // test
-
     int nfds =
         epoll_wait(epoll_fd, events, sizeof(events) / sizeof(events[0]), 1000);
 
@@ -150,6 +144,8 @@ int main(int argc, char *argv[]) {
             if (ret == -1) {
               if (errno == EAGAIN) {
                 break;
+              } else if (errno == EINTR) {
+                continue;
               } else {
                 PERROR("read");
                 close(client_sock);
@@ -173,6 +169,7 @@ int main(int argc, char *argv[]) {
 
         if (events[i].events & EPOLLOUT) {
           const char *msg = "hello client\n";
+
           for (;;) {
             int count = strlen(msg);
             const char *buf = msg;
@@ -181,6 +178,8 @@ int main(int argc, char *argv[]) {
             if (ret == -1) {
               if (errno == EAGAIN) {
                 break;
+              } else if (errno == EINTR) {
+                continue;
               } else {
                 PERROR("write");
                 close(client_sock);
