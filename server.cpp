@@ -167,9 +167,10 @@ int main(int argc, char *argv[]) {
               break;
             }
 
-            // a newline character is expected in a string message from clients.
-            // if clients are sending data of struct type, the read count should
-            // be calculated.
+            // a newline delimiter is expected in a string message from clients.
+            // when a delimiter is not used, the sum of returned bytes should
+            // match the count argument specified in read or write.
+
             msg += buf;
             if (strchr(buf, '\n')) {
               break;
@@ -205,16 +206,21 @@ int main(int argc, char *argv[]) {
               break;
             }
 
+            // when a delimiter is not used, the sum of returned bytes should
+            // match the count argument specified in read or write.
+
             if (ret == count) {
               break;
-            } else {
+            } else if (ret < count) {
               buf += ret;
               count -= ret;
             }
           }
         }
 
-        // this is needed if the clients do not write or have nothing to write
+        // this is needed to keep the event loop going,
+        // when the server or client does not write or has nothing to write.
+
         event.events = EPOLLIN | EPOLLOUT | EPOLLET;
         event.data.fd = client_sock;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {

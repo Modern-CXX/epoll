@@ -77,13 +77,6 @@ int main(int argc, char *argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
-    // Clients need to do some heady tasks or delays or throttling to avoid
-    // flooding the server with messages (which could resemble a
-    // denial-of-service (DoS) attack, causing the server to become overwhelmed
-    // by a single client).
-
-    sleep(1); // test, simulate a heavy task
-
     // read
 
     char buf[1024] = {'\0'};
