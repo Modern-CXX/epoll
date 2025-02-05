@@ -148,7 +148,8 @@ int main(int argc, char *argv[]) {
 
           for (;;) {
             char buf[1024] = {'\0'};
-            ret = read(client_sock, buf, sizeof(buf) - 1);
+            int count = sizeof(buf) - 1;
+            ret = read(client_sock, buf, count);
 
             if (ret == -1) {
               if (errno == EAGAIN) {
@@ -167,8 +168,8 @@ int main(int argc, char *argv[]) {
             }
 
             // a newline character is expected in a string message from clients.
-            // if clients are sending data of struct type, the size should be
-            // calculated.
+            // if clients are sending data of struct type, the read count should
+            // be calculated.
             msg += buf;
             if (strchr(buf, '\n')) {
               break;
@@ -184,8 +185,8 @@ int main(int argc, char *argv[]) {
           const char *msg = "hello client\n";
 
           for (;;) {
-            int count = strlen(msg);
             const char *buf = msg;
+            int count = strlen(msg);
             ret = write(client_sock, buf, count);
 
             if (ret == -1) {
