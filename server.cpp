@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -143,10 +144,11 @@ int main(int argc, char *argv[]) {
         int ret = 0;
 
         if (events[i].events & EPOLLIN) {
+          std::string msg;
+
           for (;;) {
             char buf[1024] = {'\0'};
             ret = read(client_sock, buf, sizeof(buf) - 1);
-            printf("fd:%d, %s", client_sock, buf);
 
             if (ret == -1) {
               if (errno == EAGAIN) {
@@ -167,9 +169,14 @@ int main(int argc, char *argv[]) {
             // a newline character is expected in a string message from clients.
             // if clients are sending data of struct type, the size should be
             // calculated.
+            msg += buf;
             if (strchr(buf, '\n')) {
               break;
             }
+          }
+
+          if (!empty(msg)) {
+            printf("fd:%d, %s", client_sock, msg.c_str());
           }
         }
 
