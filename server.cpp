@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
   }
 
   int listen_sock, epoll_fd, conn_sock;
-  struct epoll_event event, events[10];
+  struct epoll_event event, events[256];
   struct sockaddr_in my_addr, peer_addr;
   socklen_t addrlen = sizeof(peer_addr);
   int sockopt = 1;
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
     // sleep(1); // test
 
     int nfds =
-        epoll_wait(epoll_fd, events, sizeof(events) / sizeof(events[0]), 1000);
+        epoll_wait(epoll_fd, events, sizeof(events) / sizeof(events[0]), -1);
 
     if (nfds == -1) {
       PERROR("epoll_wait");
