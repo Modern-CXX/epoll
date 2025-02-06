@@ -77,6 +77,8 @@ int main(int argc, char *argv[]) {
   signal(SIGPIPE, SIG_IGN);
 
   for (;;) {
+    // sleep(1); // test
+
     // read
 
     char buf[1024] = {'\0'};

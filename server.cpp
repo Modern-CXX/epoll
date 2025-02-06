@@ -3,8 +3,8 @@
 // $ g++ -Wall -Wextra server.cpp -std=c++2a -g -o server
 // $ ./server 8000
 
-// 1. the order of read and write operation should not matter. the read and
-// write should be independent and should not have deep coupling together.
+// 1. the read and write should be independent.
+// read first or write first, the order should not matter.
 
 // 2. eithor server or client can stop write when they have nothing to write.
 // this should not stop the read though.
@@ -102,6 +102,8 @@ int main(int argc, char *argv[]) {
   }
 
   for (;;) {
+    // sleep(1); // test
+
     int nfds =
         epoll_wait(epoll_fd, events, sizeof(events) / sizeof(events[0]), 1000);
 
@@ -167,14 +169,13 @@ int main(int argc, char *argv[]) {
               break;
             }
 
-            // a newline delimiter is expected in a string message from clients.
-            // when a delimiter is not used, the sum of returned bytes should
-            // match the count argument specified in read or write.
+            // it is better to do business logic in a separate thread function.
+            // only go back to epoll_wait on the same file descriptor at EAGAIN.
 
             msg += buf;
-            if (strchr(buf, '\n')) {
-              break;
-            }
+            // if (strchr(buf, '\n')) {
+            //   break; // no
+            // }
           }
 
           if (!empty(msg)) {
@@ -206,11 +207,12 @@ int main(int argc, char *argv[]) {
               break;
             }
 
-            // when a delimiter is not used, the sum of returned bytes should
-            // match the count argument specified in read or write.
+            // it is better to do business logic in a separate thread function.
+            // only go back to epoll_wait on the same file descriptor at EAGAIN.
 
             if (ret == count) {
-              break;
+              count = 0;
+              // break; // no
             } else if (ret < count) {
               buf += ret;
               count -= ret;
@@ -218,16 +220,20 @@ int main(int argc, char *argv[]) {
           }
         }
 
-        // this is needed to keep the event loop going,
-        // when the server or client does not write or has nothing to write.
+        // epoll(7): the condition that the read/write I/O space is exhausted
+        // can also be detected by checking the amount of data read from /
+        // written to the target file descriptor.
 
-        event.events = EPOLLIN | EPOLLOUT | EPOLLET;
-        event.data.fd = client_sock;
-        if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
-          PERROR("epoll_ctl: client_sock");
-          close(client_sock);
-          continue;
-        }
+        // if we go back to epoll_wait on the same file descriptor at non EAGAIN
+        // situation, we may need to rearm the events.
+
+        // event.events = EPOLLIN | EPOLLOUT | EPOLLET;
+        // event.data.fd = client_sock;
+        // if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
+        //   PERROR("epoll_ctl: client_sock");
+        //   close(client_sock);
+        //   continue;
+        // }
       }
     }
   }
