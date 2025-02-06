@@ -1,13 +1,11 @@
 // server.cpp
 
-// $ g++ -Wall -Wextra server.cpp -std=c++2a -g -o server
 // $ ./server 8000
 
-// 1. the read and write should be independent.
-// read first or write first, the order should not matter.
-
-// 2. eithor server or client can stop write when they have nothing to write.
-// this should not stop the read though.
+// 1. Reading and writing should be independent.
+// Whether reading or writing first, the order should not matter.
+// 2. Either the server or the client can stop writing when there is nothing
+// left to send. However, this should not stop the reading process.
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -148,6 +146,9 @@ int main(int argc, char *argv[]) {
         if (events[i].events & EPOLLIN) {
           std::string msg;
 
+          // epoll(7): by waiting for an event only after read(2) or write(2)
+          // return EAGAIN.
+
           for (;;) {
             char buf[1024] = {'\0'};
             int count = sizeof(buf) - 1;
@@ -169,13 +170,7 @@ int main(int argc, char *argv[]) {
               break;
             }
 
-            // it is better to do business logic in a separate thread function.
-            // only go back to epoll_wait on the same file descriptor at EAGAIN.
-
             msg += buf;
-            // if (strchr(buf, '\n')) {
-            //   break; // no
-            // }
           }
 
           if (!empty(msg)) {
@@ -207,13 +202,7 @@ int main(int argc, char *argv[]) {
               break;
             }
 
-            // it is better to do business logic in a separate thread function.
-            // only go back to epoll_wait on the same file descriptor at EAGAIN.
-
-            if (ret == count) {
-              count = 0;
-              // break; // no
-            } else if (ret < count) {
+            if (ret < count) {
               buf += ret;
               count -= ret;
             }
@@ -224,8 +213,8 @@ int main(int argc, char *argv[]) {
         // can also be detected by checking the amount of data read from /
         // written to the target file descriptor.
 
-        // if we go back to epoll_wait on the same file descriptor at non EAGAIN
-        // situation, we may need to rearm the events.
+        // When EAGAIN is not returned and control flow proceeds to epoll_wait,
+        // the events need to be rearmed.
 
         // event.events = EPOLLIN | EPOLLOUT | EPOLLET;
         // event.data.fd = client_sock;

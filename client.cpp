@@ -1,8 +1,7 @@
 // client.cpp
 
-// $ g++ -Wall -Wextra -std=c++2a client.cpp -g -o client
 // $ ./client 192.168.1.16 8000 "tom"
-// $ ./client 192.168.1.16 8000 "     jerry"
+// $ ./client 192.168.1.16 8000 " jerry"
 
 #include <arpa/inet.h>
 #include <errno.h>
