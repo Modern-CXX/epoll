@@ -142,11 +142,11 @@ int main(int argc, char *argv[]) {
         int client_sock = events[i].data.fd;
         int ret = 0;
 
+        // epoll(7):
+        // waiting for an event only after read(2) or write(2) return EAGAIN.
+
         if (events[i].events & EPOLLIN) {
           std::string msg;
-
-          // epoll(7): by waiting for an event only after read(2) or write(2)
-          // return EAGAIN.
 
           for (;;) {
             char buf[1024] = {'\0'};
@@ -208,12 +208,8 @@ int main(int argc, char *argv[]) {
           }
         }
 
-        // epoll(7): the condition that the read/write I/O space is exhausted
-        // can also be detected by checking the amount of data read from /
-        // written to the target file descriptor.
-
-        // When EAGAIN is not returned and control flow proceeds to epoll_wait,
-        // the events need to be rearmed.
+        // In case we go back to epoll_wait before reaching EAGAIN, the events
+        // may need to be rearmed.
 
         // event.events = EPOLLIN | EPOLLOUT | EPOLLET;
         // event.data.fd = client_sock;
