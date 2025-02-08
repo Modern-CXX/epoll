@@ -2,10 +2,9 @@
 
 // $ ./server 8000
 
-// 1. Reading and writing should be independent.
-// Whether reading or writing first, the order should not matter.
-// 2. Either the server or the client can stop writing when there is nothing
-// left to send. However, this should not stop the reading process.
+// 1. Whether read first or write first, the order should not matter.
+// 2. If server or client stops writing, if should still be able to read.
+//    eg. In an IM messenger, when we do not write to frend, we can still read.
 
 #include <arpa/inet.h>
 #include <errno.h>
