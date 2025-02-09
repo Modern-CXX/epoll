@@ -2,9 +2,9 @@
 
 // $ ./server 8000
 
+// In Instant Messenger, when we do not write to friend, we can still read.
 // 1. Whether read first or write first, the order should not matter.
 // 2. If server or client stops writing, if should still be able to read.
-//    eg. In an IM messenger, when we do not write to frend, we can still read.
 
 #include <arpa/inet.h>
 #include <errno.h>
