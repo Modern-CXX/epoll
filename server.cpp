@@ -2,12 +2,12 @@
 
 // $ ./server 8000
 
-// When programming a TCP server using edge-triggered epoll in C on Linux, with
-// a non-blocking socket file descriptor: If the server writes a message,
-// regardless of whether it fills up the kernel send buffer or not, and the peer
-// client reads the message, the server will likely receive EPOLLOUT in the next
-// call to epoll_wait if there is now space available in the send buffer to
-// accept more data.
+// When programming a TCP server using edge-triggered epoll in C on Linux with a
+// non-blocking socket, the server writes a message to the client, possibly
+// encountering EAGAIN. Once the client reads the message, the socket becomes
+// ready for writing again. If the server then calls epoll_wait, it will receive
+// an EPOLLOUT event, allowing the server to enter the event loop and write more
+// data.
 
 #include <arpa/inet.h>
 #include <errno.h>
