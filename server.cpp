@@ -2,9 +2,12 @@
 
 // $ ./server 8000
 
-// In Instant Messenger, when we do not write to friend, we can still read.
-// 1. Whether read first or write first, the order should not matter.
-// 2. If server or client stops writing, if should still be able to read.
+// When programming a TCP server using edge-triggered epoll in C on Linux, with
+// a non-blocking socket file descriptor: If the server writes a message,
+// regardless of whether it fills up the kernel send buffer or not, and the peer
+// client reads the message, the server will likely receive EPOLLOUT in the next
+// call to epoll_wait if there is now space available in the send buffer to
+// accept more data.
 
 #include <arpa/inet.h>
 #include <errno.h>
