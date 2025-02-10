@@ -5,9 +5,9 @@
 // When programming a TCP server using edge-triggered epoll in C on Linux with a
 // non-blocking socket, the server writes a message to the client, possibly
 // encountering EAGAIN. Once the client reads the message, the socket becomes
-// ready for writing again. If the server then calls epoll_wait, it will receive
-// an EPOLLOUT event, allowing the server to enter the event loop and write more
-// data.
+// ready for writing again on the server. If the server then calls epoll_wait,
+// it will receive an EPOLLOUT event, allowing the server to enter the event
+// loop and write more data.
 
 #include <arpa/inet.h>
 #include <errno.h>
