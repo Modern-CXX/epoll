@@ -10,9 +10,9 @@
 // read or write more data. These events will be generated when client performs
 // write or read respectively.
 //
-// Even if the read or write operation does not trigger EAGAIN, the server can
-// also return to epoll_wait() and wait for new events which will be received
-// when client performs write or read.
+// Even if the read or write does not trigger EAGAIN, the server can also return
+// to epoll_wait() and wait for new events which will be received when client
+// performs write or read.
 
 #include <arpa/inet.h>
 #include <errno.h>
