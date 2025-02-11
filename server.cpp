@@ -2,12 +2,17 @@
 
 // $ ./server 8000
 
-// When programming a TCP server using edge-triggered epoll in C on Linux with a
-// non-blocking socket, the server writes a message to the client, possibly
-// encountering EAGAIN. Once the client reads the message, the socket becomes
-// ready for writing again on the server. If the server then calls epoll_wait,
-// it will receive an EPOLLOUT event, allowing the server to enter the event
-// loop and write more data.
+// epoll(7): waiting for an event only after read(2) or write(2) return EAGAIN.
+//
+// What the epoll manpage means is that when EAGAIN is encountered during read
+// or write, the server cannot read or write anymore at this time. The server
+// must return to epoll_wait() and wait for new EPOLLIN or EPOLLOUT event to
+// read or write more data. These events will be generated when client performs
+// write or read respectively.
+//
+// Even if the read or write operation does not trigger EAGAIN, the server can
+// also return to epoll_wait() and wait for new events which will be received
+// when client performs write or read.
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -145,9 +150,6 @@ int main(int argc, char *argv[]) {
         int client_sock = events[i].data.fd;
         int ret = 0;
 
-        // epoll(7):
-        // waiting for an event only after read(2) or write(2) return EAGAIN.
-
         if (events[i].events & EPOLLIN) {
           std::string msg;
 
@@ -210,17 +212,6 @@ int main(int argc, char *argv[]) {
             }
           }
         }
-
-        // In case we go back to epoll_wait before reaching EAGAIN, the events
-        // may need to be rearmed.
-
-        // event.events = EPOLLIN | EPOLLOUT | EPOLLET;
-        // event.data.fd = client_sock;
-        // if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_sock, &event) == -1) {
-        //   PERROR("epoll_ctl: client_sock");
-        //   close(client_sock);
-        //   continue;
-        // }
       }
     }
   }
