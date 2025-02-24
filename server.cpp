@@ -4,15 +4,27 @@
 
 // epoll(7): waiting for an event only after read(2) or write(2) return EAGAIN.
 //
-// What the epoll manpage means is that when EAGAIN is encountered during read
-// or write, the server cannot read or write anymore at this time. The server
-// must return to epoll_wait() and wait for new EPOLLIN or EPOLLOUT event to
-// read or write more data. These events will be generated when client performs
-// write or read respectively.
+// EAGAIN:
+// 1. On the server, when there is no data to read or when there is a large
+// amount of data to write, EAGAIN will be encountered. This indicates that the
+// server cannot read or write more data at the moment. The server should return
+// to epoll_wait to wait for the next EPOLLIN for readable or EPOLLOUT for
+// writable event before attempting to read or write more data again.
 //
-// Even if the read or write does not trigger EAGAIN, the server can also return
-// to epoll_wait() and wait for new events which will be received when client
-// performs write or read.
+// 2. On the server, if there is only a small amount of data to write and EAGAIN
+// is not encountered, the server can definitively return to epoll_wait after
+// writing the data. However, in edge-triggered mode, the server should register
+// for EPOLLOUT only when there is data to write.
+//
+// 3. (Starvation) On the server, if there is a large amount of data to read
+// from one client, it may indicate that the client is continuously writing, and
+// the server is continuously reading. In this case, both the server and the
+// client are actively reading and writing, and EAGAIN may not be encountered.
+// However, this may starve socket file descriptors of other connections.
+
+// Thundering Herd:
+// epoll with edge-triggered mode provides a useful optimization for avoiding
+// thundering herd.
 
 #include <arpa/inet.h>
 #include <errno.h>
