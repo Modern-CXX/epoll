@@ -1,7 +1,7 @@
 // server.cpp
-
+//
 // $ ./server 8000
-
+//
 // epoll(7): waiting for an event only after read(2) or write(2) return EAGAIN.
 //
 // EAGAIN:
@@ -15,8 +15,8 @@
 // - server will receive EPOLLIN if socket file descriptor changes from
 // non-readable to readable, which occurs when client writes data to server;
 // - or server will receive EPOLLOUT if socket file descriptor changes from
-// non-writable to writable, which occurs when client reads data to server.
-
+// non-writable to writable, which occurs when client reads data from server.
+//
 // 2. On the server, if there is only a small amount of data to write and EAGAIN
 // is not encountered, the server can definitively return to epoll_wait after
 // writing the data. However, in edge-triggered mode, the server should register
@@ -27,14 +27,15 @@
 // the server is continuously reading. In this case, both the server and the
 // client are actively reading and writing, and EAGAIN may not be encountered.
 // However, this may starve socket file descriptors of other connections.
-
-// Set a limit on the amount of data read from a single socket in one iteration.
-// This can help ensure that the server periodically checks other connections,
+//
+// Set a limit on the amount of data read from a client in one iteration. This
+// can help ensure that the server periodically checks other connections,
 // reducing the risk of starvation.
-
+//
 // Thundering Herd:
 // epoll with edge-triggered mode provides a useful optimization for avoiding
 // thundering herd.
+//
 
 #include <arpa/inet.h>
 #include <errno.h>
