@@ -28,9 +28,19 @@
 // client are actively reading and writing, and EAGAIN may not be encountered.
 // However, this may starve socket file descriptors of other connections.
 //
-// Set a limit on the amount of data read from a client in one iteration. This
-// can help ensure that the server periodically checks other connections,
-// reducing the risk of starvation.
+// - Maintain a new ready list (not the ready list of epoll(7) itself).
+// - When epoll_wait receives an EPOLLIN or EPOLLOUT event on a file descriptor,
+// add it to the new ready list if it is not already there.
+// - Use a round-robin approach based on fairness of time slice or data length
+// among the file descriptors in the new ready list. Read or write until EAGAIN
+// is encountered.
+// - When EAGAIN is encountered, remove the file descriptor from the new ready
+// list and return to epoll_wait.
+// - In edge-triggered mode, epoll only notifies when a socket becomes readable
+// or writable. Receiving EPOLLIN or EPOLLOUT from epoll_wait is not a sign to
+// read or write immediately, but a sign to add the file descriptor to the new
+// ready list. Read or write on the file descriptors in the new ready list until
+// EAGAIN is encountered.
 //
 // Thundering Herd:
 // epoll with edge-triggered mode provides a useful optimization for avoiding
